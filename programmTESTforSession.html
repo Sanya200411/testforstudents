@@ -1,227 +1,252 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Создание теста</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-        }
-        textarea {
-            width: 100%;
-            height: 150px;
-        }
-        .btn {
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            cursor: pointer;
-            font-size: 16px;
-            margin-top: 10px;
-        }
-        .btn:hover {
-            background-color: #45a049;
-        }
-        .result {
-            margin-top: 20px;
-            font-size: 18px;
-            font-weight: bold;
-        }
-        .feedback {
-            font-size: 16px;
-            color: red;
-        }
-        .correct-feedback {
-            color: green;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Создание теста</title>
+  <script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+    textarea {
+      width: 100%;
+      height: 150px;
+    }
+    .btn {
+      background-color: #4CAF50;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 10px;
+    }
+    .btn:hover {
+      background-color: #45a049;
+    }
+    .result {
+      margin-top: 20px;
+      font-size: 18px;
+      font-weight: bold;
+    }
+    .feedback {
+      font-size: 16px;
+      color: red;
+    }
+    .correct-feedback {
+      color: green;
+    }
+  </style>
 </head>
 <body>
 
-    <h1>Создание теста</h1>
+<h1>Создание теста</h1>
 
-    <div>
-        <h2>Введите текст теста:</h2>
-        <textarea id="testText" placeholder="Введите тест здесь..."></textarea>
-        <button class="btn" onclick="createTestFromText()">Создать тест из текста</button>
-    </div>
+<div>
+  <h2>Введите текст теста:</h2>
+  <textarea id="testText" placeholder="Введите тест здесь..."></textarea>
+  <button class="btn" onclick="createTestFromText()">Создать тест из текста</button>
+</div>
 
-    <div>
-        <h2>Или загрузите файл:</h2>
-        <input type="file" id="fileInput" accept=".txt,.docx,.pdf">
-        <button class="btn" onclick="handleFileUpload()">Загрузить файл</button>
-    </div>
+<div>
+  <h2>Или загрузите файл:</h2>
+  <input type="file" id="fileInput" accept=".txt,.docx">
+  <button class="btn" onclick="handleFileUpload()">Загрузить файл</button>
+</div>
 
-    <div id="question-container">
-        <!-- Вопросы будут отображаться здесь -->
-    </div>
+<div id="question-container"></div>
 
-  
-    <button class="btn" onclick="nextQuestion()">Далее</button>
-    <div class="result" id="result"></div>
-    <div id="feedback" class="feedback"></div>
+<button class="btn" onclick="nextQuestion()">Далее</button>
+<div class="result" id="result"></div>
+<div id="feedback" class="feedback"></div>
+<br>
+<button class="btn" id="shuffleBtn" onclick="shuffleQuestions()" style="display: none;">Рандомизировать вопросы</button>
+<br>
+<button class="btn" id="skipModeBtn" onclick="enableSkipMode()">Включить пропуск при ошибке</button>
 
-    <script>
-        let questions = [];
-        let currentQuestionIndex = 0;
-        let score = 0;
+<script>
+  let questions = [];
+  let currentQuestionIndex = 0;
+  let score = 0;
+  let skipOnWrongAnswer = false;
 
-        // Функция для создания теста из текста
-        function createTestFromText() {
-            const text = document.getElementById('testText').value;
-            questions = parseTextToQuestions(text);
-            currentQuestionIndex = 0;
-            score = 0;
-            document.getElementById('feedback').innerHTML = ''; // Очистить обратную связь
-            displayQuestion();
-        }
+  function createTestFromText() {
+    document.getElementById('shuffleBtn').style.display = 'inline-block';
+    const text = document.getElementById('testText').value;
+    questions = parseTextToQuestions(text);
+    currentQuestionIndex = 0;
+    score = 0;
+    document.getElementById('feedback').innerHTML = '';
+    document.getElementById('result').innerHTML = '';
+    displayQuestion();
+  }
 
-        // Функция для обработки загруженного файла
-        function handleFileUpload() {
-            const file = document.getElementById('fileInput').files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const fileContent = e.target.result;
-                    questions = parseTextToQuestions(fileContent);
-                    currentQuestionIndex = 0;
-                    score = 0;
-                    document.getElementById('feedback').innerHTML = ''; // Очистить обратную связь
-                    displayQuestion();
-                };
-                reader.readAsText(file);
-            }
-        }
-
-        // Парсинг текста в формат вопросов и ответов
-        function parseTextToQuestions(text) {
-            const lines = text.split('\n');
-            const parsedQuestions = [];
-            let currentQuestion = {};
-            let isAnswerSection = false;
-            lines.forEach(line => {
-                line = line.trim();
-                if (line.startsWith("<question")) {
-                    if (currentQuestion.question) {
-                        parsedQuestions.push(currentQuestion);
-                    }
-                    currentQuestion = {
-                        question: line.replace("<question", "").replace(">", "").trim(),
-                        answers: [],
-                        correct: null
-                    };
-                    isAnswerSection = true;
-                } else if (line.startsWith("<variantright>")) {
-                    currentQuestion.correct = currentQuestion.answers.length;
-                    currentQuestion.answers.push(line.replace("<variantright>", "").trim());
-                } else if (line.startsWith("<variant>")) {
-                    currentQuestion.answers.push(line.replace("<variant>", "").trim());
-                }
+  function handleFileUpload() {
+    document.getElementById('shuffleBtn').style.display = 'inline-block';
+    const file = document.getElementById('fileInput').files[0];
+    if (file) {
+      const reader = new FileReader();
+      if (file.name.endsWith(".docx")) {
+        reader.onload = function (e) {
+          mammoth.extractRawText({ arrayBuffer: e.target.result })
+            .then(function (result) {
+              questions = parseTextToQuestions(result.value);
+              currentQuestionIndex = 0;
+              score = 0;
+              document.getElementById('feedback').innerHTML = '';
+              document.getElementById('result').innerHTML = '';
+              displayQuestion();
+            })
+            .catch(function (err) {
+              alert("Ошибка при чтении .docx файла");
+              console.error(err);
             });
-            if (currentQuestion.question) {
-                parsedQuestions.push(currentQuestion);
-            }
-            return parsedQuestions;
-        }
-
-        // Перемешивание ответов
-        function shuffleAnswers(question) {
-            const answers = [...question.answers]; // Создаем копию массива ответов
-            const correctAnswerIndex = question.correct;
-            answers.sort(() => Math.random() - 0.5); // Перемешиваем массив случайным образом
-            // Находим новый индекс правильного ответа после перемешивания
-            const newCorrectIndex = answers.indexOf(question.answers[correctAnswerIndex]);
-            return {
-                shuffledAnswers: answers,
-                correctAnswerIndex: newCorrectIndex
-            };
-        }
-
-        // Отображение текущего вопроса
-        function displayQuestion() {
-            const questionContainer = document.getElementById('question-container');
-            questionContainer.innerHTML = '';
-
-            const questionData = questions[currentQuestionIndex];
-            const { shuffledAnswers, correctAnswerIndex } = shuffleAnswers(questionData); // Перемешиваем ответы
-
-            const questionElement = document.createElement('div');
-            questionElement.className = 'question';
-            questionElement.textContent = questionData.question;
-
-            questionContainer.appendChild(questionElement);
-
-            shuffledAnswers.forEach((answer, index) => {
-                const answerElement = document.createElement('div');
-                answerElement.className = 'answer';
-
-                const answerInput = document.createElement('input');
-                answerInput.type = 'radio';
-                answerInput.name = 'answer';
-                answerInput.value = index;
-                answerInput.id = `answer${index}`;
-
-                const answerLabel = document.createElement('label');
-                answerLabel.setAttribute('for', `answer${index}`);
-                answerLabel.textContent = answer;
-
-                answerElement.appendChild(answerInput);
-                answerElement.appendChild(answerLabel);
-
-                questionContainer.appendChild(answerElement);
-            });
-
-            // Сохраняем новый правильный индекс в объекте вопроса
-            questions[currentQuestionIndex].correct = correctAnswerIndex;
-        }
-
-        // Переход к следующему вопросу
-        function nextQuestion() {
-    const selectedAnswer = document.querySelector('input[name="answer"]:checked');
-
-    if (!selectedAnswer) {
-        document.getElementById('feedback').innerHTML = '<span class="feedback">Выберите вариант ответа!</span>';
-        return;
+        };
+        reader.readAsArrayBuffer(file);
+      } else if (file.name.endsWith(".txt")) {
+        reader.onload = function (e) {
+          const fileContent = e.target.result;
+          questions = parseTextToQuestions(fileContent);
+          currentQuestionIndex = 0;
+          score = 0;
+          document.getElementById('feedback').innerHTML = '';
+          document.getElementById('result').innerHTML = '';
+          displayQuestion();
+        };
+        reader.readAsText(file);
+      } else {
+        alert("Поддерживаются только файлы .txt и .docx");
+      }
     }
+  }
 
+  function parseTextToQuestions(text) {
+    const lines = text.split('\n');
+    const parsedQuestions = [];
+    let currentQuestion = {};
+    lines.forEach(line => {
+      line = line.trim();
+      if (line.startsWith("<question")) {
+        if (currentQuestion.question) {
+          parsedQuestions.push(currentQuestion);
+        }
+        currentQuestion = {
+          question: line.replace("<question", "").replace(">", "").trim(),
+          answers: [],
+          correct: null
+        };
+      } else if (line.startsWith("<variantright>")) {
+        currentQuestion.correct = currentQuestion.answers.length;
+        currentQuestion.answers.push(line.replace("<variantright>", "").trim());
+      } else if (line.startsWith("<variant>")) {
+        currentQuestion.answers.push(line.replace("<variant>", "").trim());
+      }
+    });
+    if (currentQuestion.question) {
+      parsedQuestions.push(currentQuestion);
+    }
+    return parsedQuestions;
+  }
+
+  function shuffleAnswers(question) {
+    const answers = [...question.answers];
+    const correctAnswerIndex = question.correct;
+    answers.sort(() => Math.random() - 0.5);
+    const newCorrectIndex = answers.indexOf(question.answers[correctAnswerIndex]);
+    return {
+      shuffledAnswers: answers,
+      correctAnswerIndex: newCorrectIndex
+    };
+  }
+
+  function displayQuestion() {
+    document.getElementById('skipModeBtn').style.display = 'inline-block';
+    const questionContainer = document.getElementById('question-container');
+    questionContainer.innerHTML = '';
+    const questionData = questions[currentQuestionIndex];
+    const { shuffledAnswers, correctAnswerIndex } = shuffleAnswers(questionData);
+    const questionElement = document.createElement('div');
+    questionElement.className = 'question';
+    questionElement.textContent = questionData.question;
+    questionContainer.appendChild(questionElement);
+
+    shuffledAnswers.forEach((answer, index) => {
+      const answerElement = document.createElement('div');
+      answerElement.className = 'answer';
+      const answerInput = document.createElement('input');
+      answerInput.type = 'radio';
+      answerInput.name = 'answer';
+      answerInput.value = index;
+      answerInput.id = `answer${index}`;
+      const answerLabel = document.createElement('label');
+      answerLabel.setAttribute('for', `answer${index}`);
+      answerLabel.textContent = answer;
+      answerElement.appendChild(answerInput);
+      answerElement.appendChild(answerLabel);
+      questionContainer.appendChild(answerElement);
+    });
+
+    questions[currentQuestionIndex].correct = correctAnswerIndex;
+  }
+
+  function nextQuestion() {
+    const selectedAnswer = document.querySelector('input[name="answer"]:checked');
     const correctAnswerIndex = questions[currentQuestionIndex].correct;
 
-    if (parseInt(selectedAnswer.value) === correctAnswerIndex) {
+    if (selectedAnswer) {
+      if (parseInt(selectedAnswer.value) === correctAnswerIndex) {
         score++;
-        document.getElementById('feedback').innerHTML = ''; // Очистить обратную связь
+        document.getElementById('feedback').innerHTML = '';
         currentQuestionIndex++;
-
-        if (currentQuestionIndex < questions.length) {
-            displayQuestion();
+      } else {
+        if (skipOnWrongAnswer) {
+          currentQuestionIndex++;
+          document.getElementById('feedback').innerHTML = '';
         } else {
-            displayResult();
+          document.getElementById('feedback').innerHTML = `<span class="feedback">Неправильный ответ. Попробуйте еще раз.</span>`;
+          return;
         }
+      }
     } else {
-        document.getElementById('feedback').innerHTML = `<span class="feedback">Неправильный ответ. Попробуйте еще раз.</span>`;
-        // Не увеличиваем currentQuestionIndex — остаёмся на том же вопросе
+      if (skipOnWrongAnswer) {
+        currentQuestionIndex++;
+        document.getElementById('feedback').innerHTML = '';
+      } else {
+        document.getElementById('feedback').innerHTML = `<span class="feedback">Выберите ответ, прежде чем продолжить.</span>`;
+        return;
+      }
     }
-}
 
+    if (currentQuestionIndex < questions.length) {
+      displayQuestion();
+    } else {
+      displayResult();
+    }
+  }
 
-        // Переход к предыдущему вопросу
-        function previousQuestion() {
-            if (currentQuestionIndex > 0) {
-                currentQuestionIndex--;
-                displayQuestion();
-                document.getElementById('feedback').innerHTML = ''; // Очистить обратную связь
-            }
-        }
+  function displayResult() {
+    const resultContainer = document.getElementById('result');
+    resultContainer.textContent = `Вы набрали ${score} из ${questions.length} правильных ответов!`;
+    document.getElementById('feedback').innerHTML = '';
+  }
 
-        function displayResult() {
-            const resultContainer = document.getElementById('result');
-            resultContainer.textContent = `Вы набрали ${score} из ${questions.length} правильных ответов!`;
-            document.getElementById('feedback').innerHTML = ''; // Очистить обратную связь после завершения теста
-        }
-    </script>
+  function shuffleQuestions() {
+    questions.sort(() => Math.random() - 0.5);
+    currentQuestionIndex = 0;
+    score = 0;
+    document.getElementById('feedback').innerHTML = '';
+    document.getElementById('result').innerHTML = '';
+    displayQuestion();
+  }
+
+  function enableSkipMode() {
+    skipOnWrongAnswer = true;
+    document.getElementById('skipModeBtn').style.display = 'none';
+  }
+</script>
 
 </body>
 </html>
